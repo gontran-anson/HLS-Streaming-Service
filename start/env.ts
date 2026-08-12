@@ -61,4 +61,13 @@ export default await Env.create(new URL('../', import.meta.url), {
   RUSTFS_ACCESS_KEY: Env.schema.string(),
   RUSTFS_SECRET_KEY: Env.schema.string(),
   RUSTFS_BUCKET: Env.schema.string(),
+
+  /*
+  |----------------------------------------------------------
+  | Public base URL where the HLS is served (ADR-0006)
+  |----------------------------------------------------------
+  | The front door (Caddy/CDN), NOT the internal RustFS origin. `outputPlaylist`
+  | is published as `<HLS_PUBLIC_BASE_URL>/hls/<id>/master.m3u8`.
+  */
+  HLS_PUBLIC_BASE_URL: Env.schema.string({ format: 'url', tld: false }),
 })
