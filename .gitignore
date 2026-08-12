@@ -3,6 +3,9 @@ node_modules
 build
 tmp
 
+# Uploaded sources — ephemeral, deleted after transcoding
+storage
+
 # Secrets
 .env
 .env.local
