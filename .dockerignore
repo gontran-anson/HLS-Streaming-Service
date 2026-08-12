@@ -1,0 +1,27 @@
+# Build artifacts and deps (rebuilt inside the image)
+node_modules
+build
+
+# Local runtime scratch (ephemeral source/HLS staging)
+storage
+tmp
+
+# Secrets and local env (env comes from the container's environment)
+.env
+.env.*
+!.env.example
+
+# VCS and tooling
+.git
+.gitignore
+.claude
+.fleet
+.idea
+.vscode
+
+# Misc
+*.log
+.DS_Store
+Dockerfile
+.dockerignore
+docker-compose.yml
