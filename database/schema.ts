@@ -6,7 +6,7 @@
 
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
-import type { SourceKind, TranscodeStatus } from '#models/support/transcode_enums'
+import type { SourceKind, TranscodeStatus } from '#transcodes/support/transcode_enums'
 
 export class TranscodeSchema extends BaseModel {
   static $columns = ['archiveKey', 'createdAt', 'durationSeconds', 'error', 'id', 'originalFilename', 'outputPlaylist', 'sourceKind', 'status', 'updatedAt'] as const

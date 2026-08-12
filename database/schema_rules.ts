@@ -8,13 +8,13 @@ import { type SchemaRules } from '@adonisjs/lucid/types/schema_generator'
  */
 const statusColumn = {
   tsType: 'TranscodeStatus',
-  imports: [{ source: '#models/support/transcode_enums', typeImports: ['TranscodeStatus'] }],
+  imports: [{ source: '#transcodes/support/transcode_enums', typeImports: ['TranscodeStatus'] }],
   decorators: [{ name: '@column' }],
 }
 
 const sourceKindColumn = {
   tsType: 'SourceKind',
-  imports: [{ source: '#models/support/transcode_enums', typeImports: ['SourceKind'] }],
+  imports: [{ source: '#transcodes/support/transcode_enums', typeImports: ['SourceKind'] }],
   decorators: [{ name: '@column' }],
 }
 
