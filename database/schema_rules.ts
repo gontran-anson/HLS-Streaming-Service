@@ -18,12 +18,20 @@ const sourceKindColumn = {
   decorators: [{ name: '@column' }],
 }
 
+// The per-upload HMAC secret is a credential: never serialized back to a client
+// (upload 202, status poll). `serializeAs: null` drops it from every payload.
+const callbackSecretColumn = {
+  tsType: 'string',
+  decorators: [{ name: '@column', args: { serializeAs: null } }],
+}
+
 export default {
   tables: {
     transcodes: {
       columns: {
         status: statusColumn,
         source_kind: sourceKindColumn,
+        callback_secret: callbackSecretColumn,
       },
     },
   },
