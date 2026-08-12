@@ -30,9 +30,13 @@ export function masterPlaylistPath(id: string): string {
   return join(hlsOutputDir(id), 'master.m3u8')
 }
 
-/** The lossless audio archive (FLAC) on local disk, pushed to RustFS in jalon G. */
+/**
+ * The lossless audio archive (FLAC) on local disk, pushed to RustFS in jalon G.
+ * Kept **outside** the HLS output dir so it is never swept into the HLS upload
+ * — the archive is conservation, not diffusion.
+ */
 export function archivePath(id: string): string {
-  return join(hlsOutputDir(id), 'archive.flac')
+  return app.makePath('storage/archives', `${id}.flac`)
 }
 
 /**

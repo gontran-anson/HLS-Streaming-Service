@@ -3,10 +3,12 @@ import type { CommandOptions } from '@adonisjs/core/types/ace'
 import logger from '@adonisjs/core/services/logger'
 import { ProcessTranscode } from '#transcodes/actions/process_transcode'
 import { FailTranscode } from '#transcodes/actions/fail_transcode'
+import { ArchiveTranscode } from '#transcodes/actions/archive_transcode'
 import { NoAudioTrackException } from '#transcodes/exceptions/no_audio_track_exception'
 import { queueConnection, workerConcurrency } from '#config/queue'
 import { TRANSCODE_QUEUE, type TranscodeJobData } from '#transcodes/queues/transcode_queue'
 import { WEBHOOK_QUEUE, type WebhookJobData } from '#transcodes/queues/webhook_queue'
+import { ARCHIVE_QUEUE, type ArchiveJobData } from '#transcodes/queues/archive_queue'
 import { deliverWebhook } from '#transcodes/support/deliver_webhook'
 import { UnrecoverableError, Worker } from 'bullmq'
 
@@ -31,6 +33,7 @@ export default class TranscodeWorker extends BaseCommand {
   async run() {
     const processTranscode = await this.app.container.make(ProcessTranscode)
     const failTranscode = await this.app.container.make(FailTranscode)
+    const archiveTranscode = await this.app.container.make(ArchiveTranscode)
 
     const worker = new Worker<TranscodeJobData>(
       TRANSCODE_QUEUE,
@@ -57,7 +60,7 @@ export default class TranscodeWorker extends BaseCommand {
       const terminal = error instanceof UnrecoverableError || job.attemptsMade >= attempts
       if (terminal) {
         await failTranscode
-          .execute({ id: job.data.id, reason: error.message })
+          .execute({ id: job.data.id, reason: error.message, sourcePath: job.data.sourcePath })
           .catch((markError) =>
             logger.error({ err: markError, jobId: job.id }, 'mark FAILED failed')
           )
@@ -81,11 +84,29 @@ export default class TranscodeWorker extends BaseCommand {
       logger.error({ err: error, jobId: job?.id }, 'webhook delivery failed')
     })
 
+    // Archive/cleanup (jalon G, ADR-0004). A third Worker drains the `archive`
+    // queue: push the FLAC to RustFS, record its key, then delete the local HLS
+    // staging and the Source. Retries independently of the encode.
+    const archiveWorker = new Worker<ArchiveJobData>(
+      ARCHIVE_QUEUE,
+      async (job) => {
+        logger.info({ jobId: job.id }, 'archive started')
+        await archiveTranscode.execute({ id: job.data.id, sourcePath: job.data.sourcePath })
+        logger.info({ jobId: job.id }, 'archive completed')
+      },
+      { connection: queueConnection, concurrency: workerConcurrency }
+    )
+
+    archiveWorker.on('failed', (job, error) => {
+      logger.error({ err: error, jobId: job?.id }, 'archive job failed')
+    })
+
     logger.info(`transcode worker ready (concurrency=${workerConcurrency})`)
 
     this.app.terminating(async () => {
       await worker.close()
       await webhookWorker.close()
+      await archiveWorker.close()
     })
   }
 }

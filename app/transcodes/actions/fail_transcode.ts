@@ -2,11 +2,15 @@ import Transcode from '#transcodes/models/transcode'
 import { ProgressStore } from '#transcodes/services/progress_store'
 import { TranscodePublisher } from '#transcodes/services/transcode_publisher'
 import { WebhookQueue } from '#transcodes/queues/webhook_queue'
+import { hlsOutputDir } from '#transcodes/support/hls'
 import { inject } from '@adonisjs/core'
+import { rm } from 'node:fs/promises'
 
 export interface FailTranscodeParams {
   id: string
   reason: string
+  /** The local Source path, deleted on failure (nothing worth keeping). */
+  sourcePath?: string
 }
 
 /**
@@ -50,5 +54,10 @@ export class FailTranscode {
         },
       })
     }
+
+    // Reclaim disk: a failed Transcode has nothing worth archiving (ADR-0004).
+    // Best-effort — remove the Source and any partial HLS staging.
+    if (params.sourcePath) await rm(params.sourcePath, { force: true })
+    await rm(hlsOutputDir(params.id), { recursive: true, force: true })
   }
 }

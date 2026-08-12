@@ -50,4 +50,15 @@ export default await Env.create(new URL('../', import.meta.url), {
   AUTH_VERIFY_STATUS: Env.schema.number.optional(),
   AUTH_VERIFY_BODY_MATCH: Env.schema.string.optional(),
   AUTH_CACHE_TTL: Env.schema.number.optional(),
+
+  /*
+  |----------------------------------------------------------
+  | RustFS (S3-compatible) — HLS serving origin + FLAC archive
+  |----------------------------------------------------------
+  */
+  RUSTFS_ENDPOINT: Env.schema.string({ format: 'url', tld: false }),
+  RUSTFS_REGION: Env.schema.string.optional(),
+  RUSTFS_ACCESS_KEY: Env.schema.string(),
+  RUSTFS_SECRET_KEY: Env.schema.string(),
+  RUSTFS_BUCKET: Env.schema.string(),
 })
