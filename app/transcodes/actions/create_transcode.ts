@@ -7,6 +7,10 @@ export interface CreateTranscodeParams {
   id: string
   /** The client file name — kept for admin display only, never a disk path. */
   originalFilename: string
+  /** Optional completion-webhook URL; when absent, no webhook is fired (jalon I). */
+  callbackUrl?: string
+  /** Optional per-upload HMAC secret used to sign the webhook body. */
+  callbackSecret?: string
 }
 
 /**
@@ -26,6 +30,8 @@ export class CreateTranscode {
       status: 'PENDING',
       originalFilename: params.originalFilename,
       sourceKind,
+      callbackUrl: params.callbackUrl ?? null,
+      callbackSecret: params.callbackSecret ?? null,
     })
   }
 }

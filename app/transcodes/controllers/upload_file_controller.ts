@@ -46,6 +46,10 @@ export default class UploadFileController {
         'wmv',
       ],
     }),
+    // Optional completion webhook (jalon I). A valid URL opts in; the secret,
+    // when present, signs the delivered body (HMAC SHA-256).
+    callbackUrl: vine.string().url().optional(),
+    callbackSecret: vine.string().optional(),
   })
 
   /**
@@ -62,7 +66,9 @@ export default class UploadFileController {
    * @responseBody 422 - {"code":"E_VALIDATION_ERROR"}
    */
   async handle({ request, response, serialize }: HttpContext) {
-    const { file } = await request.validateUsing(UploadFileController.validator)
+    const { file, callbackUrl, callbackSecret } = await request.validateUsing(
+      UploadFileController.validator
+    )
 
     const id = uuidv7()
     const sourcePath = await this.sourceStore.save(file, id)
@@ -70,6 +76,8 @@ export default class UploadFileController {
     const transcode = await this.createTranscode.execute({
       id,
       originalFilename: file.clientName,
+      callbackUrl,
+      callbackSecret,
     })
 
     // Hand off to the worker (jalon D): jobId = id makes a re-submitted upload
