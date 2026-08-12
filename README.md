@@ -196,20 +196,21 @@ docker compose --env-file .env.docker up -d server worker
 
 ## Servir le HLS avec Caddy
 
-`outputPlaylist` vaut `/hls/<id>/master.m3u8`. Le [`Caddyfile`](./Caddyfile) fourni sert
-`/hls/*` **depuis le bucket RustFS** (S3 path-style) et proxifie tout le reste (upload,
-statut, SSE) vers l'app. Un service `caddy` optionnel est inclus dans la compose, sous le
-profil `proxy` :
+`outputPlaylist` vaut `/hls/<id>/master.m3u8`. En production Caddy est un **front door
+indépendant** (hors de cette compose) : le [`Caddyfile`](./Caddyfile) fourni sert `/hls/*`
+**depuis le bucket RustFS** (S3 path-style) et proxifie tout le reste (upload, statut, SSE)
+vers l'app. On le lance à côté de la stack, en pointant l'app et RustFS :
 
 ```sh
-docker compose --env-file .env.docker --profile proxy up -d --build
-# front door sur http://localhost:${CADDY_PORT:-8080}
+APP_UPSTREAM=host.docker.internal:3333 \
+RUSTFS_ENDPOINT=http://host.docker.internal:9000 \
+RUSTFS_BUCKET=streaming-service \
+caddy run --config ./Caddyfile
+# ou: docker run -p 8080:80 -v $PWD/Caddyfile:/etc/caddy/Caddyfile:ro -e APP_UPSTREAM=… caddy:2
 ```
 
-Le préfixe `hls/` du bucket est rendu **lisible anonymement** automatiquement par le
-one-shot `createbucket` (`mc anonymous set download …/hls`) ; l'archive FLAC (`archives/`)
-reste privée. Sans Docker, lancer Caddy avec le `Caddyfile` et les variables
-`RUSTFS_ENDPOINT` / `RUSTFS_BUCKET` / `APP_UPSTREAM`.
+Le préfixe `hls/` du bucket est rendu **lisible anonymement** par le one-shot `createbucket`
+(`mc anonymous set download …/hls`) ; l'archive FLAC (`archives/`) reste privée.
 
 ---
 

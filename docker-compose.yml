@@ -112,27 +112,7 @@ services:
       createbucket:
         condition: service_completed_successfully
     restart: unless-stopped
-
-  # Optional front door: serves /hls/* from RustFS and proxies the rest to the
-  # app. Opt in with `docker compose --profile proxy up`.
-  caddy:
-    image: caddy:2
-    profiles: ['proxy']
-    restart: unless-stopped
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
-    environment:
-      APP_UPSTREAM: server:3333
-      RUSTFS_ENDPOINT: ${RUSTFS_ENDPOINT:-http://host.docker.internal:9000}
-      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-streaming-service}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddydata:/data
-    ports:
-      - '${CADDY_PORT:-8080}:80'
-    depends_on:
-      server:
-        condition: service_healthy
-
-volumes:
-  caddydata:
+# Caddy is **not** part of this stack: in production it is an independent,
+# externally-operated front door. Point it at the app and RustFS with the
+# provided Caddyfile (see the README). The `createbucket` step above still marks
+# the bucket's hls/ prefix publicly readable so that external Caddy can serve it.
