@@ -68,6 +68,13 @@ un job dédié avec retries ; signé en HMAC SHA-256 (`X-Transcode-Signature`) s
 `callbackSecret` est fourni (voir ADR-0005). Absent d'URL, le service reste en polling/SSE.
 _Avoid_: Notification, Ping, Hook (seul)
 
+**Vérification déléguée (auth)**:
+Le service ne connaît **rien** de l'authentification : un middleware relaie le jeton
+porteur reçu vers un endpoint HTTP configuré (`AUTH_VERIFY_URL`) et n'autorise la requête
+que si la réponse correspond (statut attendu, et éventuellement un corps attendu). Un jeton
+valide **suffit** — le service reste ignorant de l'identité de l'appelant (ADR-0003).
+_Avoid_: Guard, Login, Session, Token verifier (seul)
+
 **RustFS**:
 Le magasin d'objets S3-compatible qui joue **deux rôles** : origine de diffusion du
 HLS output (servi via Caddy) **et** dépôt de l'Archive audio (FLAC). Ni la Source ni le

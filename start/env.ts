@@ -39,4 +39,15 @@ export default await Env.create(new URL('../', import.meta.url), {
   REDIS_PORT: Env.schema.number(),
   REDIS_PASSWORD: Env.schema.string.optional(),
   WORKER_CONCURRENCY: Env.schema.number.optional(),
+
+  /*
+  |----------------------------------------------------------
+  | Delegated token verification (ADR-0003)
+  |----------------------------------------------------------
+  */
+  AUTH_VERIFY_URL: Env.schema.string({ format: 'url', tld: false }),
+  AUTH_VERIFY_METHOD: Env.schema.enum.optional(['GET', 'POST'] as const),
+  AUTH_VERIFY_STATUS: Env.schema.number.optional(),
+  AUTH_VERIFY_BODY_MATCH: Env.schema.string.optional(),
+  AUTH_CACHE_TTL: Env.schema.number.optional(),
 })
