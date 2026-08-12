@@ -1,5 +1,6 @@
 import Transcode from '#transcodes/models/transcode'
 import { ProgressStore } from '#transcodes/services/progress_store'
+import { TranscodePublisher } from '#transcodes/services/transcode_publisher'
 import { inject } from '@adonisjs/core'
 
 export interface FailTranscodeParams {
@@ -16,7 +17,10 @@ export interface FailTranscodeParams {
  */
 @inject()
 export class FailTranscode {
-  constructor(private progressStore: ProgressStore) {}
+  constructor(
+    private progressStore: ProgressStore,
+    private publisher: TranscodePublisher
+  ) {}
 
   async execute(params: FailTranscodeParams): Promise<void> {
     const transcode = await Transcode.find(params.id)
@@ -26,5 +30,6 @@ export class FailTranscode {
     transcode.error = params.reason
     await transcode.save()
     await this.progressStore.clear(params.id)
+    this.publisher.broadcast(transcode)
   }
 }
