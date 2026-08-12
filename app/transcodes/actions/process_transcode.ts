@@ -2,6 +2,7 @@ import Transcode from '#transcodes/models/transcode'
 import { FfmpegTranscoder } from '#transcodes/services/ffmpeg_transcoder'
 import { ProgressStore } from '#transcodes/services/progress_store'
 import { TranscodePublisher } from '#transcodes/services/transcode_publisher'
+import { WebhookQueue } from '#transcodes/queues/webhook_queue'
 import { NoAudioTrackException } from '#transcodes/exceptions/no_audio_track_exception'
 import { masterPlaylistPath, outputPlaylistUrl } from '#transcodes/support/hls'
 import { inject } from '@adonisjs/core'
@@ -30,7 +31,8 @@ export class ProcessTranscode {
   constructor(
     private transcoder: FfmpegTranscoder,
     private progressStore: ProgressStore,
-    private publisher: TranscodePublisher
+    private publisher: TranscodePublisher,
+    private webhookQueue: WebhookQueue
   ) {}
 
   async execute(params: ProcessTranscodeParams): Promise<void> {
@@ -69,5 +71,22 @@ export class ProcessTranscode {
     await transcode.save()
     await this.progressStore.set(params.id, 100)
     this.publisher.broadcast(transcode, 100)
+
+    // Completion webhook (jalon I): notify the caller URL, if any, of the
+    // terminal COMPLETED state via a dedicated retrying delivery job.
+    if (transcode.callbackUrl) {
+      await this.webhookQueue.enqueue({
+        transcodeId: transcode.id,
+        callbackUrl: transcode.callbackUrl,
+        callbackSecret: transcode.callbackSecret ?? undefined,
+        payload: {
+          id: transcode.id,
+          status: transcode.status,
+          progress: 100,
+          outputPlaylist: transcode.outputPlaylist,
+          error: null,
+        },
+      })
+    }
   }
 }

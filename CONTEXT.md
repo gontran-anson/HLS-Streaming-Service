@@ -60,6 +60,14 @@ Transmit, car le worker (qui encode) et le serveur HTTP (auquel le client est co
 sont deux processus distincts. Canal **ouvert** pour l'instant ; l'auth arrive au jalon H.
 _Avoid_: WebSocket, Socket, Topic, Room
 
+**Webhook de complétion / Callback**:
+La notification HTTP `POST` que le service pousse vers une URL fournie **par upload**
+(`callbackUrl`) quand un Transcode atteint un état terminal (COMPLETED **ou** FAILED). Le
+corps est le payload unifié (`{ id, status, progress, outputPlaylist, error }`), livré par
+un job dédié avec retries ; signé en HMAC SHA-256 (`X-Transcode-Signature`) si un
+`callbackSecret` est fourni (voir ADR-0005). Absent d'URL, le service reste en polling/SSE.
+_Avoid_: Notification, Ping, Hook (seul)
+
 **RustFS**:
 Le magasin d'objets S3-compatible qui joue **deux rôles** : origine de diffusion du
 HLS output (servi via Caddy) **et** dépôt de l'Archive audio (FLAC). Ni la Source ni le
