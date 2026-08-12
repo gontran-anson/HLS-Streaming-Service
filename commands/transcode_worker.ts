@@ -6,6 +6,8 @@ import { FailTranscode } from '#transcodes/actions/fail_transcode'
 import { NoAudioTrackException } from '#transcodes/exceptions/no_audio_track_exception'
 import { queueConnection, workerConcurrency } from '#config/queue'
 import { TRANSCODE_QUEUE, type TranscodeJobData } from '#transcodes/queues/transcode_queue'
+import { WEBHOOK_QUEUE, type WebhookJobData } from '#transcodes/queues/webhook_queue'
+import { deliverWebhook } from '#transcodes/support/deliver_webhook'
 import { UnrecoverableError, Worker } from 'bullmq'
 
 /**
@@ -62,10 +64,28 @@ export default class TranscodeWorker extends BaseCommand {
       }
     })
 
+    // Completion-webhook delivery (jalon I). A second Worker in the same process
+    // drains the `webhook` queue: it POSTs the terminal-state payload to the
+    // caller URL, and a non-2xx / timeout throws so BullMQ retries with backoff.
+    const webhookWorker = new Worker<WebhookJobData>(
+      WEBHOOK_QUEUE,
+      async (job) => {
+        logger.info({ jobId: job.id, transcodeId: job.data.transcodeId }, 'webhook started')
+        await deliverWebhook(job.data)
+        logger.info({ jobId: job.id, transcodeId: job.data.transcodeId }, 'webhook delivered')
+      },
+      { connection: queueConnection, concurrency: workerConcurrency }
+    )
+
+    webhookWorker.on('failed', (job, error) => {
+      logger.error({ err: error, jobId: job?.id }, 'webhook delivery failed')
+    })
+
     logger.info(`transcode worker ready (concurrency=${workerConcurrency})`)
 
     this.app.terminating(async () => {
       await worker.close()
+      await webhookWorker.close()
     })
   }
 }
