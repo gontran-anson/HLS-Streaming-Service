@@ -1,6 +1,7 @@
 import Transcode from '#transcodes/models/transcode'
 import { FfmpegTranscoder } from '#transcodes/services/ffmpeg_transcoder'
 import { ProgressStore } from '#transcodes/services/progress_store'
+import { TranscodePublisher } from '#transcodes/services/transcode_publisher'
 import { WebhookQueue } from '#transcodes/queues/webhook_queue'
 import { NoAudioTrackException } from '#transcodes/exceptions/no_audio_track_exception'
 import { masterPlaylistPath, outputPlaylistUrl } from '#transcodes/support/hls'
@@ -30,6 +31,7 @@ export class ProcessTranscode {
   constructor(
     private transcoder: FfmpegTranscoder,
     private progressStore: ProgressStore,
+    private publisher: TranscodePublisher,
     private webhookQueue: WebhookQueue
   ) {}
 
@@ -46,6 +48,7 @@ export class ProcessTranscode {
       transcode.durationSeconds = probe.durationSeconds
       await transcode.save()
       await this.progressStore.set(params.id, 0)
+      this.publisher.broadcast(transcode, 0)
 
       let lastPercent = 0
       await this.transcoder.encode(
@@ -57,6 +60,7 @@ export class ProcessTranscode {
             lastPercent = percent
             // Best-effort: a Redis hiccup must not fail the encode.
             void this.progressStore.set(params.id, percent).catch(() => {})
+            this.publisher.broadcast(transcode, percent)
           }
         }
       )
@@ -66,6 +70,7 @@ export class ProcessTranscode {
     transcode.outputPlaylist = outputPlaylistUrl(params.id)
     await transcode.save()
     await this.progressStore.set(params.id, 100)
+    this.publisher.broadcast(transcode, 100)
 
     // Completion webhook (jalon I): notify the caller URL, if any, of the
     // terminal COMPLETED state via a dedicated retrying delivery job.

@@ -1,5 +1,6 @@
 import Transcode from '#transcodes/models/transcode'
 import { ProgressStore } from '#transcodes/services/progress_store'
+import { TranscodePublisher } from '#transcodes/services/transcode_publisher'
 import { WebhookQueue } from '#transcodes/queues/webhook_queue'
 import { inject } from '@adonisjs/core'
 
@@ -19,6 +20,7 @@ export interface FailTranscodeParams {
 export class FailTranscode {
   constructor(
     private progressStore: ProgressStore,
+    private publisher: TranscodePublisher,
     private webhookQueue: WebhookQueue
   ) {}
 
@@ -30,6 +32,7 @@ export class FailTranscode {
     transcode.error = params.reason
     await transcode.save()
     await this.progressStore.clear(params.id)
+    this.publisher.broadcast(transcode)
 
     // Completion webhook (jalon I): notify the caller URL, if any, of the
     // terminal FAILED state via a dedicated retrying delivery job.
