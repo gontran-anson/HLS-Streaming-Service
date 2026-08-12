@@ -1,14 +1,44 @@
+import { FindTranscode } from '#transcodes/actions/find_transcode'
+import TranscodeTransformer from '#transcodes/transformers/transcode_transformer'
+import { uuidV7 } from '#common/validators/uuid'
+import { resolveLang } from '#common/utils/request_lang'
+import { inject } from '@adonisjs/core'
 import type { HttpContext } from '@adonisjs/core/http'
+import vine from '@vinejs/vine'
 
 /**
- * `GET /transcodes/:id/status` — point-in-time status poll.
+ * `GET /transcodes/:id/status` — point-in-time status poll (Q14 of the design).
  *
- * Implemented in jalon C (#3): merge the durable Postgres status with the
- * volatile Redis progress, 404 on unknown id, payload identical to the SSE
- * shape (via TranscodeTransformer). Stub for now.
+ * Serves the single wire shape (`id, status, progress, outputPlaylist, error`)
+ * via TranscodeTransformer — the very same payload the SSE channel pushes.
+ * `status` is read from Postgres (source of truth); `progress` is derived from
+ * status for now and will be overlaid with the live Redis value once the worker
+ * publishes it (jalon D).
+ *
+ * A malformed id is a 422 (validation); a well-formed but unknown id is a 404.
  */
+@inject()
 export default class GetTranscodeStatusByIdController {
-  async handle({ params }: HttpContext) {
-    return { id: params.id }
+  constructor(private findTranscode: FindTranscode) {}
+
+  private static validator = vine.compile(vine.object({ id: uuidV7() }))
+
+  /**
+   * @handle
+   * @summary Get a transcode status
+   * @operationId getTranscodeStatus
+   * @description Return the current state of a Transcode by its id: status,
+   * progress, output playlist and error — identical in shape to the SSE payload.
+   * @paramPath id - Transcode UUID v7 - @type(string) @required
+   * @responseBody 200 - <Transcode>
+   * @responseBody 404 - {"code":"E_TRANSCODE_NOT_EXISTS"}
+   * @responseBody 422 - {"code":"E_VALIDATION_ERROR"}
+   */
+  async handle({ params, request, serialize }: HttpContext) {
+    const { id } = await GetTranscodeStatusByIdController.validator.validate({ id: params.id })
+
+    const transcode = await this.findTranscode.execute({ id, lang: resolveLang(request) })
+
+    return serialize(TranscodeTransformer.transform(transcode))
   }
 }
