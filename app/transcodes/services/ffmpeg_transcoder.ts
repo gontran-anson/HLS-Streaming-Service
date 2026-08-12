@@ -45,25 +45,30 @@ export class FfmpegTranscoder {
   }
 
   /**
-   * Encodes the source into local HLS + FLAC. `onProgress` is called with an
-   * integer percentage (0-99) as ffmpeg advances; it is not called when the
-   * duration is unknown (progress stays indeterminate).
+   * Encodes the source (a local path or a remote URL — ffmpeg reads both) into
+   * local HLS. When `withArchive` is true it also writes the lossless FLAC
+   * master; a URL ingestion sets it false (the original already lives at the URL,
+   * ADR-0004). `onProgress` gets an integer percentage (0-99) as ffmpeg advances;
+   * it is not called when the duration is unknown.
    */
   async encode(
-    sourcePath: string,
+    source: string,
     id: string,
     durationSeconds: number | null,
-    onProgress: (percent: number) => void
+    onProgress: (percent: number) => void,
+    options: { withArchive: boolean } = { withArchive: true }
   ): Promise<void> {
     const outDir = hlsOutputDir(id)
     await mkdir(outDir, { recursive: true })
     for (const rendition of RENDITIONS) {
       await mkdir(join(outDir, rendition.name), { recursive: true })
     }
-    // The FLAC archive lives outside the HLS dir (see hls.ts) — ensure its dir exists.
-    await mkdir(dirname(archivePath(id)), { recursive: true })
+    if (options.withArchive) {
+      // The FLAC archive lives outside the HLS dir (see hls.ts) — ensure its dir exists.
+      await mkdir(dirname(archivePath(id)), { recursive: true })
+    }
 
-    const args = this.buildArgs(sourcePath, id, outDir)
+    const args = this.buildArgs(source, id, outDir, options.withArchive)
 
     await new Promise<void>((resolve, reject) => {
       const proc = spawn('ffmpeg', args)
@@ -98,7 +103,7 @@ export class FfmpegTranscoder {
     })
   }
 
-  private buildArgs(sourcePath: string, id: string, outDir: string): string[] {
+  private buildArgs(source: string, id: string, outDir: string, withArchive: boolean): string[] {
     const bitrateFlags = RENDITIONS.flatMap((rendition, index) => [
       `-b:a:${index}`,
       rendition.bitrate,
@@ -111,17 +116,14 @@ export class FfmpegTranscoder {
       '-hide_banner',
       '-y',
       '-i',
-      sourcePath,
+      source,
       '-vn',
       '-progress',
       'pipe:1',
       '-nostats',
-      // Output 1 — lossless FLAC archive.
-      '-map',
-      '0:a:0',
-      '-c:a',
-      'flac',
-      archivePath(id),
+      // Output 1 — lossless FLAC archive (skipped for a URL source: the original
+      // already lives at the URL, ADR-0004).
+      ...(withArchive ? ['-map', '0:a:0', '-c:a', 'flac', archivePath(id)] : []),
       // Output 2 — the three HLS renditions + master playlist.
       ...RENDITIONS.flatMap(() => ['-map', '0:a:0']),
       '-c:a',

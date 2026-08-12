@@ -6,8 +6,10 @@ export const ARCHIVE_QUEUE = 'archive'
 
 export interface ArchiveJobData {
   id: string
-  /** The local Source path to delete once the archive is safely in RustFS. */
-  sourcePath: string
+  /** The transcode source (local path or remote URL). */
+  source: string
+  /** true = URL source: no local Source to delete, no FLAC to archive. */
+  remote: boolean
 }
 
 /**

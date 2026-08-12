@@ -9,7 +9,7 @@ import { DateTime } from 'luxon'
 import type { SourceKind, TranscodeStatus } from '#transcodes/support/transcode_enums'
 
 export class TranscodeSchema extends BaseModel {
-  static $columns = ['archiveKey', 'callbackSecret', 'callbackUrl', 'createdAt', 'durationSeconds', 'error', 'id', 'originalFilename', 'outputPlaylist', 'sourceKind', 'status', 'updatedAt'] as const
+  static $columns = ['archiveKey', 'callbackSecret', 'callbackUrl', 'createdAt', 'durationSeconds', 'error', 'id', 'originalFilename', 'outputPlaylist', 'sourceKind', 'sourceUrl', 'status', 'updatedAt'] as const
   $columns = TranscodeSchema.$columns
   @column()
   declare archiveKey: string | null
@@ -31,6 +31,8 @@ export class TranscodeSchema extends BaseModel {
   declare outputPlaylist: string | null
   @column()
   declare sourceKind: SourceKind
+  @column()
+  declare sourceUrl: string | null
   @column()
   declare status: TranscodeStatus
   @column.dateTime({ autoCreate: true, autoUpdate: true })

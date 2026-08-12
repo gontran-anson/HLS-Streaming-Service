@@ -12,7 +12,10 @@ import { existsSync } from 'node:fs'
 
 export interface ProcessTranscodeParams {
   id: string
-  sourcePath: string
+  /** ffmpeg input: a local Source path (upload) or a remote URL (URL ingestion). */
+  source: string
+  /** true = URL source: ffmpeg reads the URL, no FLAC archive is produced. */
+  remote: boolean
 }
 
 /**
@@ -45,7 +48,7 @@ export class ProcessTranscode {
     const transcode = await Transcode.findOrFail(params.id)
 
     if (!existsSync(masterPlaylistPath(params.id))) {
-      const probe = await this.transcoder.probe(params.sourcePath)
+      const probe = await this.transcoder.probe(params.source)
       if (!probe.hasAudio) {
         throw new NoAudioTrackException()
       }
@@ -58,7 +61,7 @@ export class ProcessTranscode {
 
       let lastPercent = 0
       await this.transcoder.encode(
-        params.sourcePath,
+        params.source,
         params.id,
         probe.durationSeconds,
         (percent) => {
@@ -68,7 +71,9 @@ export class ProcessTranscode {
             void this.progressStore.set(params.id, percent).catch(() => {})
             this.publisher.broadcast(transcode, percent)
           }
-        }
+        },
+        // A URL source keeps no FLAC archive — the original lives at the URL.
+        { withArchive: !params.remote }
       )
     }
 
@@ -99,8 +104,12 @@ export class ProcessTranscode {
       })
     }
 
-    // Second stage (ADR-0004): archive the FLAC and reclaim local disk. A
-    // separate job so a RustFS outage retries without re-encoding.
-    await this.archiveQueue.enqueue({ id: params.id, sourcePath: params.sourcePath })
+    // Second stage (ADR-0004): archive the FLAC (uploads only) and reclaim local
+    // disk. A separate job so a RustFS outage retries without re-encoding.
+    await this.archiveQueue.enqueue({
+      id: params.id,
+      source: params.source,
+      remote: params.remote,
+    })
   }
 }

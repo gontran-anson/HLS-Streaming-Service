@@ -40,7 +40,11 @@ export default class TranscodeWorker extends BaseCommand {
       async (job) => {
         logger.info({ jobId: job.id }, 'transcode started')
         try {
-          await processTranscode.execute({ id: job.data.id, sourcePath: job.data.sourcePath })
+          await processTranscode.execute({
+            id: job.data.id,
+            source: job.data.source,
+            remote: job.data.remote,
+          })
         } catch (error) {
           if (error instanceof NoAudioTrackException) {
             throw new UnrecoverableError(error.message)
@@ -60,7 +64,12 @@ export default class TranscodeWorker extends BaseCommand {
       const terminal = error instanceof UnrecoverableError || job.attemptsMade >= attempts
       if (terminal) {
         await failTranscode
-          .execute({ id: job.data.id, reason: error.message, sourcePath: job.data.sourcePath })
+          .execute({
+            id: job.data.id,
+            reason: error.message,
+            source: job.data.source,
+            remote: job.data.remote,
+          })
           .catch((markError) =>
             logger.error({ err: markError, jobId: job.id }, 'mark FAILED failed')
           )
@@ -91,7 +100,11 @@ export default class TranscodeWorker extends BaseCommand {
       ARCHIVE_QUEUE,
       async (job) => {
         logger.info({ jobId: job.id }, 'archive started')
-        await archiveTranscode.execute({ id: job.data.id, sourcePath: job.data.sourcePath })
+        await archiveTranscode.execute({
+          id: job.data.id,
+          source: job.data.source,
+          remote: job.data.remote,
+        })
         logger.info({ jobId: job.id }, 'archive completed')
       },
       { connection: queueConnection, concurrency: workerConcurrency }

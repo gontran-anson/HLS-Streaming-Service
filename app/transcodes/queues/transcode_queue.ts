@@ -6,14 +6,16 @@ import { Queue } from 'bullmq'
 export const TRANSCODE_QUEUE = 'transcode'
 
 /**
- * Everything the worker needs to process a Transcode without re-reading the DB:
- * the id (the Source on disk is named `<id>.<ext>`), the absolute Source path,
- * and the kind (audio vs video container).
+ * Everything the worker needs to process a Transcode without re-reading the DB.
+ * `source` is the ffmpeg input — a local path for an upload, or a remote URL for
+ * a URL ingestion; `remote` tells the worker whether there is a local Source to
+ * clean up and a FLAC archive to produce.
  */
 export interface TranscodeJobData {
   id: string
-  sourcePath: string
+  source: string
   sourceKind: SourceKind
+  remote: boolean
 }
 
 /**
