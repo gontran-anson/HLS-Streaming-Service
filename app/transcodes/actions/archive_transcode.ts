@@ -1,6 +1,6 @@
 import Transcode from '#transcodes/models/transcode'
 import { RustfsStorage } from '#transcodes/services/rustfs_storage'
-import { archivePath, hlsOutputDir } from '#transcodes/support/hls'
+import { archiveKey, archivePath, hlsOutputDir } from '#transcodes/support/hls'
 import { inject } from '@adonisjs/core'
 import { rm } from 'node:fs/promises'
 
@@ -29,7 +29,7 @@ export class ArchiveTranscode {
     if (!transcode) return
 
     if (!params.remote) {
-      const key = `archives/${params.id}.flac`
+      const key = archiveKey(params.id)
       await this.rustfs.uploadFile(archivePath(params.id), key)
       transcode.archiveKey = key
       await transcode.save()
