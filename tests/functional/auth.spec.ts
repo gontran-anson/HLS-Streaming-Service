@@ -29,6 +29,11 @@ test.group('Auth gate', (group) => {
     response.assertStatus(401)
   })
 
+  test('DELETE /transcodes/:id without a token is 401', async ({ client }) => {
+    const response = await client.delete(`/transcodes/${KNOWN_ID}`)
+    response.assertStatus(401)
+  })
+
   test('an invalid token is 401 (verifier rejects)', async ({ client }) => {
     verifierReturns(false)
     const response = await client

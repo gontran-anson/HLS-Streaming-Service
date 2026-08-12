@@ -20,6 +20,13 @@ test.group('Validation', (group) => {
     response.assertStatus(422)
   })
 
+  test('a malformed transcode id is 422 on delete too', async ({ client }) => {
+    const response = await client
+      .delete('/transcodes/not-a-uuid')
+      .header('Authorization', 'Bearer ok')
+    response.assertStatus(422)
+  })
+
   test('URL ingestion without a sourceUrl is 422', async ({ client }) => {
     const response = await client.post('/transcodes').header('Authorization', 'Bearer ok').json({})
     response.assertStatus(422)
