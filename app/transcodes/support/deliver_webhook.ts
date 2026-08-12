@@ -7,6 +7,11 @@ const WEBHOOK_TIMEOUT_MS = 10_000
 /** Header carrying the `sha256=<hex>` HMAC of the exact body, when a secret is set. */
 export const SIGNATURE_HEADER = 'X-Transcode-Signature'
 
+/** The `sha256=<hex>` HMAC-SHA256 of `body` under `secret` — the header value. */
+export function webhookSignature(secret: string, body: string): string {
+  return `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`
+}
+
 /**
  * POSTs the frozen payload as JSON to the caller URL (jalon I, ADR-0005).
  *
@@ -19,8 +24,7 @@ export async function deliverWebhook(data: WebhookJobData): Promise<void> {
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (data.callbackSecret) {
-    const signature = createHmac('sha256', data.callbackSecret).update(body).digest('hex')
-    headers[SIGNATURE_HEADER] = `sha256=${signature}`
+    headers[SIGNATURE_HEADER] = webhookSignature(data.callbackSecret, body)
   }
 
   const controller = new AbortController()

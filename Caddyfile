@@ -1,0 +1,40 @@
+# Front door for the streaming service.
+#
+# `/hls/*` is served straight from the RustFS bucket (S3 path-style); everything
+# else (upload, status, SSE) is proxied to the app. Configurable via env:
+#
+#   CADDY_SITE       site address           (default :80)
+#   APP_UPSTREAM     app host:port          (default server:3333)
+#   RUSTFS_ENDPOINT  RustFS S3 endpoint     (default http://rustfs:9000)
+#   RUSTFS_BUCKET    bucket name            (default streaming-service)
+#
+# The bucket's `hls/` prefix must allow anonymous read (the archive/ prefix stays
+# private). With MinIO/RustFS `mc`:
+#
+#   mc anonymous set download rustfs/<bucket>/hls
+
+{
+	admin off
+	auto_https off
+}
+
+{$CADDY_SITE::80} {
+	# HLS playlists + segments — served from RustFS, never from the app.
+	# `handle` keeps the full path; we prepend the bucket for S3 path-style.
+	handle /hls/* {
+		rewrite * /{$RUSTFS_BUCKET:streaming-service}{uri}
+		reverse_proxy {$RUSTFS_ENDPOINT:http://rustfs:9000}
+	}
+
+	# Real-time SSE — disable response buffering so events flush immediately.
+	handle /__transmit/* {
+		reverse_proxy {$APP_UPSTREAM:server:3333} {
+			flush_interval -1
+		}
+	}
+
+	# Upload, URL ingestion, status, everything else → the app.
+	handle {
+		reverse_proxy {$APP_UPSTREAM:server:3333}
+	}
+}
