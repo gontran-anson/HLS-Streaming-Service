@@ -51,6 +51,15 @@ pas seulement une archive). La copie locale n'est qu'un **staging transitoire** 
 supprimée une fois le HLS poussé dans RustFS, pour que le disque applicatif reste borné.
 _Avoid_: Stream, Rendus, Playlist (seul)
 
+**Canal temps réel (SSE)**:
+Le flux Server-Sent-Events sur lequel un client suit un Transcode en direct, un canal
+par ressource nommé `transcodes/<id>` (séparateur `/`, calé sur la route). On y pousse
+**exactement la même charge utile** que le poll de statut (`id, status, progress,
+outputPlaylist, error`) : un seul contrat. La diffusion passe par le transport Redis de
+Transmit, car le worker (qui encode) et le serveur HTTP (auquel le client est connecté)
+sont deux processus distincts. Canal **ouvert** pour l'instant ; l'auth arrive au jalon H.
+_Avoid_: WebSocket, Socket, Topic, Room
+
 **RustFS**:
 Le magasin d'objets S3-compatible qui joue **deux rôles** : origine de diffusion du
 HLS output (servi via Caddy) **et** dépôt de l'Archive audio (FLAC). Ni la Source ni le
