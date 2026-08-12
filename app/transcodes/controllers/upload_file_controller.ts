@@ -1,5 +1,6 @@
 import { CreateTranscode } from '#transcodes/actions/create_transcode'
 import { SourceStore } from '#common/services/source_store'
+import { TranscodeQueue } from '#transcodes/queues/transcode_queue'
 import TranscodeTransformer from '#transcodes/transformers/transcode_transformer'
 import { inject } from '@adonisjs/core'
 import type { HttpContext } from '@adonisjs/core/http'
@@ -21,7 +22,8 @@ import vine from '@vinejs/vine'
 export default class UploadFileController {
   constructor(
     private createTranscode: CreateTranscode,
-    private sourceStore: SourceStore
+    private sourceStore: SourceStore,
+    private transcodeQueue: TranscodeQueue
   ) {}
 
   private static validator = vine.create({
@@ -63,12 +65,17 @@ export default class UploadFileController {
     const { file } = await request.validateUsing(UploadFileController.validator)
 
     const id = uuidv7()
-    await this.sourceStore.save(file, id)
+    const sourcePath = await this.sourceStore.save(file, id)
 
     const transcode = await this.createTranscode.execute({
       id,
       originalFilename: file.clientName,
     })
+
+    // Hand off to the worker (jalon D): jobId = id makes a re-submitted upload
+    // idempotent. The row is already PENDING, so a queue hiccup never loses the
+    // record — it can be re-enqueued.
+    await this.transcodeQueue.enqueue({ id, sourcePath, sourceKind: transcode.sourceKind })
 
     response.status(202)
     return serialize(TranscodeTransformer.transform(transcode))
