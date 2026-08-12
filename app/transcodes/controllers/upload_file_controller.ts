@@ -83,7 +83,12 @@ export default class UploadFileController {
     // Hand off to the worker (jalon D): jobId = id makes a re-submitted upload
     // idempotent. The row is already PENDING, so a queue hiccup never loses the
     // record — it can be re-enqueued.
-    await this.transcodeQueue.enqueue({ id, sourcePath, sourceKind: transcode.sourceKind })
+    await this.transcodeQueue.enqueue({
+      id,
+      source: sourcePath,
+      sourceKind: transcode.sourceKind,
+      remote: false,
+    })
 
     response.status(202)
     return serialize(TranscodeTransformer.transform(transcode))

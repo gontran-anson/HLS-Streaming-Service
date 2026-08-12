@@ -15,10 +15,12 @@ piste vidéo : une vidéo n'est acceptée que comme conteneur dont on extrait l'
 _Avoid_: Transcoding, Job, Conversion, Task
 
 **Source**:
-Le fichier original téléversé par un administrateur (audio `.mp3/.wav/.flac/.aac…`
-ou vidéo `.mp4/.mkv/.mov…`). Éphémère sur le serveur applicatif : écrit sur le disque
-local, lu par le worker, puis supprimé dès que le Transcode atteint COMPLETED (une fois
-l'Archive audio bien poussée dans RustFS).
+Le média d'origine d'un Transcode, fourni de deux façons : **téléversé** (`POST /upload`)
+ou désigné par **URL** (`POST /transcodes`, ex. un objet S3). Téléversée, elle est écrite
+sur le disque local, lue par le worker, puis supprimée à COMPLETED (une fois l'Archive
+audio dans RustFS). Par URL, elle n'est **jamais copiée** localement : ffmpeg lit l'URL
+directement, aucune Archive FLAC n'est produite, et l'URL (`source_url`) tient lieu de
+master (ADR-0004).
 _Avoid_: Original, Upload, Input file
 
 **Archive audio**:

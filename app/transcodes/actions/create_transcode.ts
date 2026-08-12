@@ -5,8 +5,10 @@ import { fileKind } from '#common/utils/file_agent'
 export interface CreateTranscodeParams {
   /** The server-minted UUID v7; the Source on disk is already named after it. */
   id: string
-  /** The client file name — kept for admin display only, never a disk path. */
+  /** The client file name (or URL basename) — display only, never a disk path. */
   originalFilename: string
+  /** Set for URL ingestion: the original stays here, no local copy is kept. */
+  sourceUrl?: string
   /** Optional completion-webhook URL; when absent, no webhook is fired (jalon I). */
   callbackUrl?: string
   /** Optional per-upload HMAC secret used to sign the webhook body. */
@@ -23,12 +25,16 @@ export interface CreateTranscodeParams {
  */
 export class CreateTranscode {
   async execute(params: CreateTranscodeParams): Promise<Transcode> {
-    const sourceKind: SourceKind = fileKind(params.originalFilename) === 'audio' ? 'audio' : 'video'
+    // For a URL ingestion the extension lives in the URL path; otherwise in the
+    // uploaded file name. `getExtension` (via fileKind) already strips a query.
+    const kindSource = params.sourceUrl ?? params.originalFilename
+    const sourceKind: SourceKind = fileKind(kindSource) === 'audio' ? 'audio' : 'video'
 
     return Transcode.create({
       id: params.id,
       status: 'PENDING',
       originalFilename: params.originalFilename,
+      sourceUrl: params.sourceUrl ?? null,
       sourceKind,
       callbackUrl: params.callbackUrl ?? null,
       callbackSecret: params.callbackSecret ?? null,
