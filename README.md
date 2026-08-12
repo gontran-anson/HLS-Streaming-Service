@@ -96,7 +96,7 @@ Polling, SSE et webhook servent tous la même forme :
   "id": "0191…",
   "status": "PROCESSING",
   "progress": 62,
-  "outputPlaylist": "/hls/0191…/master.m3u8",
+  "outputPlaylist": "https://media.example.com/hls/0191…/master.m3u8",
   "error": null
 }
 ```
@@ -196,8 +196,10 @@ docker compose --env-file .env.docker up -d server worker
 
 ## Servir le HLS avec Caddy
 
-`outputPlaylist` vaut `/hls/<id>/master.m3u8`. En production Caddy est un **front door
-indépendant** (hors de cette compose) : le [`Caddyfile`](./Caddyfile) fourni sert `/hls/*`
+`outputPlaylist` est une **URL absolue** `<HLS_PUBLIC_BASE_URL>/hls/<id>/master.m3u8`
+(ADR-0006) — `HLS_PUBLIC_BASE_URL` est la porte publique (Caddy/CDN). En production Caddy
+est un **front door indépendant** (hors de cette compose) : le [`Caddyfile`](./Caddyfile)
+sert `/hls/*`
 **depuis le bucket RustFS** (S3 path-style) et proxifie tout le reste (upload, statut, SSE)
 vers l'app. On le lance à côté de la stack, en pointant l'app et RustFS :
 
@@ -226,6 +228,7 @@ Le préfixe `hls/` du bucket est rendu **lisible anonymement** par le one-shot `
 | `WORKER_CONCURRENCY` | — | `1` | Transcodages en parallèle par worker. |
 | `RUSTFS_ENDPOINT` | ✅ | | Endpoint S3 de RustFS. |
 | `RUSTFS_ACCESS_KEY` `RUSTFS_SECRET_KEY` `RUSTFS_BUCKET` | ✅ | | Accès + bucket. `RUSTFS_REGION` optionnel (`us-east-1`). |
+| `HLS_PUBLIC_BASE_URL` | ✅ | | Base publique du HLS (Caddy/CDN) ; `outputPlaylist` = `<base>/hls/<id>/master.m3u8`. |
 | `AUTH_VERIFY_URL` | ✅ | | Endpoint de vérification du jeton. |
 | `AUTH_VERIFY_METHOD` `AUTH_VERIFY_STATUS` `AUTH_VERIFY_BODY_MATCH` | — | `GET` / `200` / — | Critères de validation. |
 | `AUTH_CACHE_TTL` | — | `60` | TTL (s) du cache de vérification. |

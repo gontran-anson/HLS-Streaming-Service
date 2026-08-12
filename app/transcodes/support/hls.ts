@@ -1,3 +1,4 @@
+import env from '#start/env'
 import app from '@adonisjs/core/services/app'
 import { join } from 'node:path'
 
@@ -40,9 +41,12 @@ export function archivePath(id: string): string {
 }
 
 /**
- * The client-facing playlist URL stored on the Transcode. Caddy maps `/hls/*`
- * to the served origin (local now, RustFS from jalon G) — the URL is stable.
+ * The client-facing playlist URL stored on the Transcode and published in every
+ * channel. **Absolute** (ADR-0006): `<HLS_PUBLIC_BASE_URL>/hls/<id>/master.m3u8`.
+ * The base is the public front door (Caddy/CDN), not the internal RustFS origin;
+ * the service says *where*, so callers never recompose the path.
  */
 export function outputPlaylistUrl(id: string): string {
-  return `/hls/${id}/master.m3u8`
+  const base = env.get('HLS_PUBLIC_BASE_URL').replace(/\/+$/, '')
+  return `${base}/hls/${id}/master.m3u8`
 }

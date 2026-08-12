@@ -27,3 +27,9 @@ yarn-error.log
 
 # Platform specific
 .DS_Store
+
+# Claude Code local tooling
+.claude
+
+# Generated route types
+.adonisjs/server/routes.d.ts
