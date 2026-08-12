@@ -47,6 +47,7 @@
   "dependencies": {
     "@adonisjs/core": "^7.3.5",
     "@adonisjs/lucid": "^22.4.2",
+    "@adonisjs/redis": "^10.0.0",
     "@vinejs/vine": "^4.4.0",
     "bullmq": "^6.1.0",
     "ioredis": "^6.0.0",

@@ -30,7 +30,13 @@ export class TranscodeQueue {
    * jobId rather than transcoding twice.
    */
   async enqueue(data: TranscodeJobData): Promise<void> {
-    await this.queue.add('transcode', data, { jobId: data.id })
+    await this.queue.add('transcode', data, {
+      jobId: data.id,
+      // Transient failures (OOM, I/O) retry with backoff; a permanent failure
+      // (no audio track) is thrown as unrecoverable and skips these (Q9).
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5_000 },
+    })
   }
 
   async close(): Promise<void> {

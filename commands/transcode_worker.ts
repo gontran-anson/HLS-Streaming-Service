@@ -1,20 +1,25 @@
 import { BaseCommand } from '@adonisjs/core/ace'
 import type { CommandOptions } from '@adonisjs/core/types/ace'
 import logger from '@adonisjs/core/services/logger'
+import { ProcessTranscode } from '#transcodes/actions/process_transcode'
+import { FailTranscode } from '#transcodes/actions/fail_transcode'
+import { NoAudioTrackException } from '#transcodes/exceptions/no_audio_track_exception'
 import { queueConnection, workerConcurrency } from '#config/queue'
 import { TRANSCODE_QUEUE, type TranscodeJobData } from '#transcodes/queues/transcode_queue'
-import { Worker } from 'bullmq'
+import { UnrecoverableError, Worker } from 'bullmq'
 
 /**
- * `node ace transcode:work` — the long-running worker process (jalon D).
+ * `node ace transcode:work` — the long-running worker (jalons D/E).
  *
- * A separate process from the HTTP server: it pulls transcode jobs off the
- * BullMQ queue and (later) runs ffprobe/ffmpeg. `staysAlive` keeps it up after
- * `run()` returns; the worker is drained cleanly on SIGTERM via the app's
- * `terminating` hook (the process is expected to run under a supervisor).
+ * Pulls transcode jobs off the queue and runs the encode via `ProcessTranscode`.
+ * Failure handling (Q9):
+ * - a **permanent** failure (no audio track) is re-thrown as `UnrecoverableError`
+ *   so BullMQ does not retry it;
+ * - a **transient** failure bubbles up and BullMQ retries it with backoff.
  *
- * The job processor is a skeleton for now — the encoding pipeline lands in
- * jalon E (#5).
+ * The Transcode is marked FAILED once — in the `failed` listener — only when the
+ * job is truly terminal (unrecoverable, or retries exhausted). Drained cleanly
+ * on SIGTERM.
  */
 export default class TranscodeWorker extends BaseCommand {
   static commandName = 'transcode:work'
@@ -22,23 +27,42 @@ export default class TranscodeWorker extends BaseCommand {
   static options: CommandOptions = { startApp: true, staysAlive: true }
 
   async run() {
+    const processTranscode = await this.app.container.make(ProcessTranscode)
+    const failTranscode = await this.app.container.make(FailTranscode)
+
     const worker = new Worker<TranscodeJobData>(
       TRANSCODE_QUEUE,
       async (job) => {
-        // jalon E (#5): ffprobe (duration + audio track) -> single ffmpeg pass
-        // (3 AAC renditions + FLAC) -> progress in Redis -> COMPLETED/FAILED.
-        this.logger.info(
-          `picked up transcode ${job.data.id} (${job.data.sourceKind}) at ${job.data.sourcePath}`
-        )
+        logger.info({ jobId: job.id }, 'transcode started')
+        try {
+          await processTranscode.execute({ id: job.data.id, sourcePath: job.data.sourcePath })
+        } catch (error) {
+          if (error instanceof NoAudioTrackException) {
+            throw new UnrecoverableError(error.message)
+          }
+          throw error
+        }
+        logger.info({ jobId: job.id }, 'transcode completed')
       },
       { connection: queueConnection, concurrency: workerConcurrency }
     )
 
-    worker.on('failed', (job, error) => {
+    worker.on('failed', async (job, error) => {
       logger.error({ err: error, jobId: job?.id }, 'transcode job failed')
+      if (!job) return
+
+      const attempts = job.opts.attempts ?? 1
+      const terminal = error instanceof UnrecoverableError || job.attemptsMade >= attempts
+      if (terminal) {
+        await failTranscode
+          .execute({ id: job.data.id, reason: error.message })
+          .catch((markError) =>
+            logger.error({ err: markError, jobId: job.id }, 'mark FAILED failed')
+          )
+      }
     })
 
-    this.logger.info(`transcode worker ready (concurrency=${workerConcurrency})`)
+    logger.info(`transcode worker ready (concurrency=${workerConcurrency})`)
 
     this.app.terminating(async () => {
       await worker.close()
