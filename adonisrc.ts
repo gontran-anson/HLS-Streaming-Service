@@ -46,6 +46,7 @@ export default defineConfig({
     () => import('#providers/api_provider'),
     () => import('#providers/queue_provider'),
     () => import('#providers/webhook_provider'),
+    () => import('#providers/archive_provider'),
     () => import('@adonisjs/redis/redis_provider'),
     () => import('@adonisjs/transmit/transmit_provider'),
   ],

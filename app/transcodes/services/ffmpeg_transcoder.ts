@@ -1,7 +1,7 @@
 import { RENDITIONS, HLS_SEGMENT_SECONDS, hlsOutputDir, archivePath } from '#transcodes/support/hls'
 import { execFile, spawn } from 'node:child_process'
 import { mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
@@ -60,6 +60,8 @@ export class FfmpegTranscoder {
     for (const rendition of RENDITIONS) {
       await mkdir(join(outDir, rendition.name), { recursive: true })
     }
+    // The FLAC archive lives outside the HLS dir (see hls.ts) — ensure its dir exists.
+    await mkdir(dirname(archivePath(id)), { recursive: true })
 
     const args = this.buildArgs(sourcePath, id, outDir)
 
