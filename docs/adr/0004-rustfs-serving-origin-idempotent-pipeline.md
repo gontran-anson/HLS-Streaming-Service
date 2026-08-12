@@ -1,5 +1,11 @@
 # RustFS est l'origine de diffusion ; disque applicatif borné ; pipeline en deux jobs idempotents
 
+> **Amendé par [ADR-0007](0007-url-ingestion-the-source-stays-with-the-caller.md).** Le pipeline en
+> deux temps décrit ici — encoder, puis archiver et récupérer le disque — ne vaut que pour le chemin
+> **`POST /upload`**. Sur le chemin **`POST /transcodes`** (ingestion par URL), il n'y a ni copie
+> locale de la Source, ni archive FLAC : ffmpeg lit l'URL, et le master reste l'objet de l'appelant.
+> Tout le reste — RustFS comme origine de diffusion, disque borné, idempotence — s'applique aux deux.
+
 Le HLS output est **servi depuis RustFS** via Caddy (RustFS est l'origine de diffusion,
 pas seulement une archive). La copie HLS sur le disque applicatif n'est qu'un **staging
 transitoire**, supprimée après le push vers RustFS. Ni la Source ni le HLS ne s'accumulent
