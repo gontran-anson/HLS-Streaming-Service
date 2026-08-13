@@ -6,7 +6,12 @@ import { RustfsStorage } from '#transcodes/services/rustfs_storage'
 import { WebhookQueue } from '#transcodes/queues/webhook_queue'
 import { ArchiveQueue } from '#transcodes/queues/archive_queue'
 import { NoAudioTrackException } from '#transcodes/exceptions/no_audio_track_exception'
-import { hlsOutputDir, masterPlaylistPath, outputPlaylistUrl } from '#transcodes/support/hls'
+import {
+  hlsKeyPrefix,
+  hlsOutputDir,
+  masterPlaylistPath,
+  outputPlaylistUrl,
+} from '#transcodes/support/hls'
 import { inject } from '@adonisjs/core'
 import { existsSync } from 'node:fs'
 
@@ -79,7 +84,7 @@ export class ProcessTranscode {
 
     // Push the HLS to RustFS *before* COMPLETED — the client must be able to
     // play it from the serving origin the moment we say it's ready (Q18).
-    await this.rustfs.uploadDirectory(hlsOutputDir(params.id), `hls/${params.id}`)
+    await this.rustfs.uploadDirectory(hlsOutputDir(params.id), hlsKeyPrefix(params.id))
 
     transcode.status = 'COMPLETED'
     transcode.outputPlaylist = outputPlaylistUrl(params.id)

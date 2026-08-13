@@ -1,5 +1,7 @@
 import type { MultipartFile } from '@adonisjs/core/bodyparser'
 import app from '@adonisjs/core/services/app'
+import { readdir, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 
 /**
  * Local landing spot for an uploaded Source (see CONTEXT.md).
@@ -34,5 +36,32 @@ export class SourceStore {
     const fileName = `${id}.${file.extname}`
     await file.move(app.makePath(SOURCES_ROOT), { name: fileName })
     return app.makePath(SOURCES_ROOT, fileName)
+  }
+
+  /**
+   * Deletes the staged Source of a Transcode, whatever its extension.
+   *
+   * The extension is not on the row, so the file is found by the only thing that
+   * is certain: this class chose the name `<id>.<ext>`, so it is the one that can
+   * find it back. Deleting a Transcode that never ran must reclaim its source —
+   * that is up to 2 GB per abandoned deposit (issue #24).
+   *
+   * Only ever looks inside the staging root, so it is a no-op — never a risk —
+   * for a URL ingestion, whose Source is the caller's object and is not ours to
+   * touch (ADR-0007). Nothing to delete is not an error.
+   */
+  async removeFor(id: string): Promise<void> {
+    const root = app.makePath(SOURCES_ROOT)
+
+    let entries: string[]
+    try {
+      entries = await readdir(root)
+    } catch {
+      return // the staging root does not exist yet: nothing was ever staged
+    }
+
+    for (const entry of entries.filter((name) => name.startsWith(`${id}.`))) {
+      await rm(join(root, entry), { force: true })
+    }
   }
 }

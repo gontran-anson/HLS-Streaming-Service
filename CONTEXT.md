@@ -37,7 +37,20 @@ _Avoid_: Backup source, Master (seul)
 Échec **permanent** (pas de piste audio, conteneur illisible) = FAILED direct, sans
 retry. Échec **transitoire** (OOM, I/O, disque plein) = 3 tentatives backoff puis FAILED.
 Sur COMPLETED **et** sur FAILED, la Source disque est supprimée (sur FAILED sans archivage).
+La Reprise n'est **pas un état** : elle fait disparaître le Transcode depuis n'importe
+lequel d'entre eux, y compris PENDING (job retiré de la file, ADR-0008).
 _Avoid_: État, Statut (pour l'ensemble ; réserver `status` au champ)
+
+**Reprise (delete)**:
+La destruction, sur demande de l'appelant (`DELETE /transcodes/:id`), de **tout ce que
+ce service a produit** pour un Transcode : préfixe HLS dans RustFS, Archive audio s'il
+y en a une, staging local, progression Redis, ligne en base. Jamais la Source de
+l'appelant — par URL, le master est **son** objet (ADR-0007), et l'absence d'archive
+n'est pas une erreur. Un Transcode est reprenable **exactement quand aucun worker ne le
+détient** : un job en attente est retiré de la file, un job actif répond `409` (ADR-0008).
+Idempotente **sur l'effet** : deux reprises laissent le même état, la seconde répondant
+`404`. Ce service n'a **aucune politique de rétention** : il exécute, l'appelant décide.
+_Avoid_: Purge, Nettoyage, Cleanup, Annulation
 
 **Rendu (rendition)**:
 Une des variantes de qualité d'un HLS output. Ladder fixe à 3 rendus AAC-LC :
@@ -81,4 +94,5 @@ _Avoid_: Guard, Login, Session, Token verifier (seul)
 Le magasin d'objets S3-compatible qui joue **deux rôles** : origine de diffusion du
 HLS output (servi via Caddy) **et** dépôt de l'Archive audio (FLAC). Ni la Source ni le
 HLS ne s'accumulent sur le disque applicatif — tout ce qui est durable vit dans RustFS.
+Rien n'y expire tout seul : ce qui y entre n'en sort que par une Reprise (ADR-0008).
 _Avoid_: S3, Bucket, Storage (seul)

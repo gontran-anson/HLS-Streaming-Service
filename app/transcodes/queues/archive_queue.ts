@@ -1,4 +1,5 @@
 import { queueConnection } from '#config/queue'
+import { withdrawJob } from '#transcodes/support/withdraw_job'
 import { Queue } from 'bullmq'
 
 /** Second-stage queue: archive the FLAC and reclaim local disk (ADR-0004). */
@@ -26,6 +27,16 @@ export class ArchiveQueue {
       attempts: 5,
       backoff: { type: 'exponential', delay: 5_000 },
     })
+  }
+
+  /**
+   * Takes a pending archive job off the queue before deleting the Transcode
+   * (ADR-0008). Without this, a job that fires after the deletion would push a
+   * FLAC into a bucket nobody owns any more — bytes with no row, the very leak
+   * this route exists to stop. `false` = the archive job is running right now.
+   */
+  async withdraw(id: string): Promise<boolean> {
+    return withdrawJob(this.queue, id)
   }
 
   async close(): Promise<void> {

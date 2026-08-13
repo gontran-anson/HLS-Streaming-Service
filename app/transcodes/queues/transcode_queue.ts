@@ -1,5 +1,6 @@
 import type { SourceKind } from '#transcodes/support/transcode_enums'
 import { queueConnection } from '#config/queue'
+import { withdrawJob } from '#transcodes/support/withdraw_job'
 import { Queue } from 'bullmq'
 
 /** The single BullMQ queue name; the worker binds to the same string. */
@@ -39,6 +40,15 @@ export class TranscodeQueue {
       attempts: 3,
       backoff: { type: 'exponential', delay: 5_000 },
     })
+  }
+
+  /**
+   * Takes a queued transcode back off the queue before deleting it (ADR-0008).
+   * `false` means a worker is encoding it right now — the deletion is refused,
+   * not forced. `jobId = id` is what makes this addressable at all.
+   */
+  async withdraw(id: string): Promise<boolean> {
+    return withdrawJob(this.queue, id)
   }
 
   async close(): Promise<void> {

@@ -42,13 +42,17 @@ archive) vivent ici, servis depuis **RustFS**, jamais dans le serveur applicatif
    |
    |--GET /transcodes/:id/status (polling)-------------------> [Server]
    |==SSE  transcodes/:id  (temps réel)======================> [Transmit]
-   '--webhook POST (à la finalisation, optionnel)-----------> [URL du client]
+   |--webhook POST (à la finalisation, optionnel)-----------> [URL du client]
+   '--DELETE /transcodes/:id --------------------------------> [Server]
+                                              reprend HLS + archive + ligne + Redis
 ```
 
 - **Postgres** : état durable d'un *Transcode* (source de vérité du cycle de vie).
 - **Redis** : back-end de la file BullMQ **et** progression volatile (le `%`).
 - **RustFS** (S3) : **origine de diffusion** du HLS **et** dépôt de l'archive FLAC. Le
-  disque applicatif reste borné (source et HLS supprimés après archivage).
+  disque applicatif reste borné (source et HLS supprimés après archivage). Rien n'est
+  repris automatiquement : `DELETE /transcodes/:id` est le seul chemin de reprise, et
+  c'est l'appelant qui décide quand (ADR-0008).
 
 ---
 
@@ -80,6 +84,30 @@ d'une piste audio) est **asynchrone** : un fichier sans audio est accepté puis 
 
 Récupération ponctuelle. `200` avec le **contrat unifié** ci-dessous, `404`
 (`E_TRANSCODE_NOT_EXISTS`) si l'`id` est inconnu, `422` si l'`id` n'est pas un UUID v7.
+
+### `DELETE /transcodes/:id`
+
+Reprend **tout ce que le service a produit** pour ce Transcode : le préfixe HLS dans
+RustFS, l'**archive** s'il y en a une, le staging local, la progression résiduelle en
+Redis et la ligne en base. **La Source de l'appelant n'est jamais touchée** : ingéré par
+URL, le master reste son objet (ADR-0007) et il n'y a **pas d'archive** — cette absence
+n'est pas une erreur.
+
+| Code | Quand |
+|---|---|
+| `204` | Supprimé. Le HLS n'est plus servable. |
+| `404` | `id` inconnu — **y compris un `id` déjà supprimé** (`E_TRANSCODE_NOT_EXISTS`). |
+| `409` | Un worker détient le Transcode **en ce moment** (`E_TRANSCODE_IN_PROGRESS`). |
+| `422` | L'`id` n'est pas un UUID v7. |
+
+Un Transcode en file (`PENDING`) est **retiré de la file puis supprimé** ; seul un job
+**actif** répond `409`, et ce refus est borné dans le temps — ADR-0008 explique pourquoi
+c'est la file, et non la colonne `status`, qui décide.
+
+**Idempotente sur l'effet** : supprimer deux fois laisse le même état, chaque étape
+tolérant ce qui manque déjà. Une purge qui relance après un timeout lit `404` comme
+« déjà purgé » et `409` comme « réessaie ». C'est **l'appelant** qui décide quand
+supprimer (délai de grâce, rétention) ; ce service exécute.
 
 ### SSE — canal `transcodes/:id`
 
@@ -116,6 +144,8 @@ PENDING ──▶ PROCESSING ──▶ COMPLETED     (master.m3u8 + segments ser
 - **Échec permanent** (pas d'audio) : `FAILED` immédiat, **sans retry**.
 - **Échec transitoire** (I/O, OOM…) : **3 tentatives** backoff, puis `FAILED`.
 - Sur `COMPLETED` **et** `FAILED`, la source locale est supprimée.
+- Aucun état n'est définitif : `DELETE /transcodes/:id` reprend le Transcode à **n'importe
+  quel** état, tant qu'aucun worker ne le détient (ADR-0008).
 
 **Trois canaux de notification**, au choix :
 
@@ -245,6 +275,10 @@ Le préfixe `hls/` du bucket est rendu **lisible anonymement** par le one-shot `
   - `0003` vérification de jeton déléguée
   - `0004` RustFS origine de diffusion + pipeline en 2 jobs
   - `0005` webhook de complétion
+  - `0006` `outputPlaylist` est une URL absolue
+  - `0007` ingestion par URL : la Source reste chez l'appelant, pas d'archive
+  - `0008` suppression : c'est la file, pas `status`, qui décide (409 si un worker
+    détient le Transcode)
 
 ### Structure
 
