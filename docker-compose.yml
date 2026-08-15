@@ -72,7 +72,8 @@ services:
         done;
         mc mb --ignore-existing "rustfs/$$RUSTFS_BUCKET";
         mc anonymous set download "rustfs/$$RUSTFS_BUCKET/hls";
-        echo "bucket $$RUSTFS_BUCKET ready (hls/ public)";
+        mc anonymous set download "rustfs/$$RUSTFS_BUCKET/dl";
+        echo "bucket $$RUSTFS_BUCKET ready (hls/ + dl/ public)";
 
   # One-shot: run migrations against the external Postgres, then exit. Booting
   # the app also opens the Redis connection, so external Redis must be up too.
