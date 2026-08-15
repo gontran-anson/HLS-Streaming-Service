@@ -117,7 +117,7 @@ et reçoit **le même payload** à chaque tick de progression et à chaque trans
 
 ### Le contrat unifié
 
-Polling, SSE et webhook servent tous la même forme :
+Polling et SSE servent la même forme :
 
 ```json
 {
@@ -131,6 +131,26 @@ Polling, SSE et webhook servent tous la même forme :
 
 `progress` est un entier `0–100`, ou `null` quand la durée est indéterminée. `outputPlaylist`
 est renseigné à `COMPLETED` ; `error` à `FAILED`.
+
+Le **webhook** part de cette forme et l'**enrichit** (ADR-0009) : il ajoute la durée du média
+et, par rendu, l'URL de téléchargement `.aac` et sa taille en octets — que le consommateur
+persiste et sert sans faire de `HEAD`. `downloads` est peuplé à `COMPLETED`, vide à `FAILED`.
+
+```json
+{
+  "id": "0191…",
+  "status": "COMPLETED",
+  "progress": 100,
+  "outputPlaylist": "https://media.example.com/hls/0191…/master.m3u8",
+  "error": null,
+  "durationSeconds": 321.5,
+  "downloads": [
+    { "name": "low",  "url": "https://media.example.com/dl/0191…/low.aac",  "bytes": 2600000 },
+    { "name": "mid",  "url": "https://media.example.com/dl/0191…/mid.aac",  "bytes": 5100000 },
+    { "name": "high", "url": "https://media.example.com/dl/0191…/high.aac", "bytes": 7700000 }
+  ]
+}
+```
 
 ---
 
@@ -152,8 +172,9 @@ PENDING ──▶ PROCESSING ──▶ COMPLETED     (master.m3u8 + segments ser
 1. **Polling** — `GET /transcodes/:id/status`.
 2. **SSE** — temps réel, canal `transcodes/:id`.
 3. **Webhook** — si `callbackUrl` est fourni à l'upload, un `POST` est émis à la
-   finalisation (`COMPLETED` **et** `FAILED`). Corps = le contrat unifié ; si
-   `callbackSecret` est fourni, la requête porte `X-Transcode-Signature: sha256=<hmac>`.
+   finalisation (`COMPLETED` **et** `FAILED`). Corps = le contrat unifié **enrichi** de
+   `durationSeconds` et `downloads` (ADR-0009) ; si `callbackSecret` est fourni, la requête
+   porte `X-Transcode-Signature: sha256=<hmac>`.
    Livraison par job dédié : succès = `2xx`, timeout 10 s, ~5 tentatives backoff.
 
 Les qualités HLS produites : **3 rendus AAC-LC** — `low` 64 kbps, `mid` 128 kbps,

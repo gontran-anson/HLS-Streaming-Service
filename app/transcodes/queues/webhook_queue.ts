@@ -1,4 +1,5 @@
 import type { TranscodeStatus } from '#transcodes/support/transcode_enums'
+import type { DownloadRenditionInfo } from '#transcodes/support/hls'
 import { queueConnection } from '#config/queue'
 import { Queue } from 'bullmq'
 
@@ -6,9 +7,11 @@ import { Queue } from 'bullmq'
 export const WEBHOOK_QUEUE = 'webhook'
 
 /**
- * The unified Transcode wire shape (see `transcode_transformer.ts`) — the exact
- * body POSTed to the caller. COMPLETED carries `outputPlaylist`; FAILED carries
- * `error`.
+ * The exact body POSTed to the caller. It extends the unified status shape (see
+ * `transcode_transformer.ts`) with the two fields the download feature needs
+ * pushed rather than polled (ADR-0009): the media `durationSeconds` and, per
+ * rendition, its download URL + byte size. COMPLETED carries `outputPlaylist`
+ * and a populated `downloads`; FAILED carries `error` and an empty `downloads`.
  */
 export interface WebhookPayload {
   id: string
@@ -16,6 +19,10 @@ export interface WebhookPayload {
   progress: number | null
   outputPlaylist: string | null
   error: string | null
+  /** ffprobe duration in seconds, or null when the media exposes none. */
+  durationSeconds: number | null
+  /** The progressive download renditions (URL + byte size); empty on FAILED. */
+  downloads: DownloadRenditionInfo[]
 }
 
 /**

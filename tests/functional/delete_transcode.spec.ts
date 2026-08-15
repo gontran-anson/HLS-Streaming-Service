@@ -89,7 +89,8 @@ test.group('DELETE /transcodes/:id', (group) => {
     const response = await client.delete(`/transcodes/${id}`).header('Authorization', 'Bearer ok')
 
     response.assertStatus(204)
-    assert.deepEqual(rustfs.prefixes, [`hls/${id}`])
+    // Both serving prefixes are taken back: the HLS and the `.aac` downloads (ADR-0009).
+    assert.deepEqual(rustfs.prefixes, [`hls/${id}`, `dl/${id}`])
     assert.deepEqual(rustfs.objects, [`archives/${id}.flac`])
     assert.isNull(await Transcode.find(id))
   })
@@ -105,7 +106,8 @@ test.group('DELETE /transcodes/:id', (group) => {
     const response = await client.delete(`/transcodes/${id}`).header('Authorization', 'Bearer ok')
 
     response.assertStatus(204)
-    assert.deepEqual(rustfs.prefixes, [`hls/${id}`])
+    // The `.aac` downloads are produced on the URL path too, so both prefixes go (ADR-0009).
+    assert.deepEqual(rustfs.prefixes, [`hls/${id}`, `dl/${id}`])
     assert.isEmpty(rustfs.objects)
   })
 

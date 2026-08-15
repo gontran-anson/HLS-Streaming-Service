@@ -53,6 +53,11 @@ export class FailTranscode {
           progress: null,
           outputPlaylist: transcode.outputPlaylist ?? null,
           error: transcode.error,
+          // The unified shape holds on both terminal states (ADR-0005): a FAILED
+          // transcode produced no renditions, so `downloads` is empty; the
+          // duration is sent if the probe reached it before the failure.
+          durationSeconds: transcode.durationSeconds ?? null,
+          downloads: transcode.downloads ?? [],
         },
       })
     }

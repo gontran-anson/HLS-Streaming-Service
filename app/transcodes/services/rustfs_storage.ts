@@ -5,6 +5,7 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
 } from '@aws-sdk/client-s3'
+import { DOWNLOAD_FORMAT } from '#transcodes/support/hls'
 import { readdir, readFile } from 'node:fs/promises'
 import { extname, join, relative, sep } from 'node:path'
 
@@ -12,6 +13,9 @@ const CONTENT_TYPES: Record<string, string> = {
   '.m3u8': 'application/vnd.apple.mpegurl',
   '.ts': 'video/mp2t',
   '.flac': 'audio/flac',
+  // Progressive download renditions (ADR-0009); derived from the format so a
+  // codec/container change stays a one-line edit in hls.ts.
+  [`.${DOWNLOAD_FORMAT.extension}`]: DOWNLOAD_FORMAT.contentType,
 }
 
 /** S3 caps a single DeleteObjects call at 1000 keys. */

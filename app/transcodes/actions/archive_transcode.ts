@@ -1,6 +1,6 @@
 import Transcode from '#transcodes/models/transcode'
 import { RustfsStorage } from '#transcodes/services/rustfs_storage'
-import { archiveKey, archivePath, hlsOutputDir } from '#transcodes/support/hls'
+import { archiveKey, archivePath, downloadOutputDir, hlsOutputDir } from '#transcodes/support/hls'
 import { inject } from '@adonisjs/core'
 import { rm } from 'node:fs/promises'
 
@@ -35,9 +35,11 @@ export class ArchiveTranscode {
       await transcode.save()
     }
 
-    // The HLS already serves from RustFS: reclaim local disk. For an upload,
-    // also drop the local FLAC and Source (a URL ingestion has neither).
+    // The HLS and the `.aac` download renditions already serve from RustFS:
+    // reclaim their local staging (ADR-0009 — the `.aac` are produced on both
+    // paths). For an upload, also drop the local FLAC and Source.
     await rm(hlsOutputDir(params.id), { recursive: true, force: true })
+    await rm(downloadOutputDir(params.id), { recursive: true, force: true })
     if (!params.remote) {
       await rm(archivePath(params.id), { force: true })
       await rm(params.source, { force: true })

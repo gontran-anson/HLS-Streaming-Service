@@ -4,7 +4,14 @@ import { TranscodeQueue } from '#transcodes/queues/transcode_queue'
 import { ProgressStore } from '#transcodes/services/progress_store'
 import { RustfsStorage } from '#transcodes/services/rustfs_storage'
 import { TranscodeInProgressException } from '#transcodes/exceptions/transcode_in_progress_exception'
-import { archiveKey, archivePath, hlsKeyPrefix, hlsOutputDir } from '#transcodes/support/hls'
+import {
+  archiveKey,
+  archivePath,
+  downloadKeyPrefix,
+  downloadOutputDir,
+  hlsKeyPrefix,
+  hlsOutputDir,
+} from '#transcodes/support/hls'
 import { RessourceNotExistsException } from '#common/exceptions/ressource_not_exists_exception'
 import { PlatformLang } from '#common/services/http_service'
 import { SourceStore } from '#common/services/source_store'
@@ -64,6 +71,10 @@ export class DeleteTranscode {
 
     await this.rustfs.deletePrefix(hlsKeyPrefix(params.id))
 
+    // The `.aac` download renditions ride their own prefix (ADR-0009), produced
+    // on both ingestion paths — purge them too, or they outlive their row.
+    await this.rustfs.deletePrefix(downloadKeyPrefix(params.id))
+
     // An Archive audio exists only on the upload path (ADR-0007). Prefer the
     // recorded key, and fall back to the deterministic one so an archive whose
     // job pushed the FLAC without yet recording it is still reclaimed.
@@ -74,6 +85,7 @@ export class DeleteTranscode {
     // Local staging: whatever the pipeline has not yet reclaimed (ADR-0004) —
     // a PENDING deposit still holds its whole Source on disk.
     await rm(hlsOutputDir(params.id), { recursive: true, force: true })
+    await rm(downloadOutputDir(params.id), { recursive: true, force: true })
     await rm(archivePath(params.id), { force: true })
     await this.sourceStore.removeFor(params.id)
 
