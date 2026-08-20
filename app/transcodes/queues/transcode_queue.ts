@@ -51,6 +51,45 @@ export class TranscodeQueue {
     return withdrawJob(this.queue, id)
   }
 
+  /**
+   * Read-only snapshot of the queue for the ops observability plane. The queue,
+   * not the `status` column, is the live truth about what is waiting/running
+   * (ADR-0008), so counts and active jobs are read straight from BullMQ.
+   */
+  async jobCounts(): Promise<{ waiting: number; active: number; failed: number }> {
+    const counts = await this.queue.getJobCounts('waiting', 'active', 'failed')
+    return {
+      waiting: counts.waiting ?? 0,
+      active: counts.active ?? 0,
+      failed: counts.failed ?? 0,
+    }
+  }
+
+  /** The jobs a worker holds right now, with their live progress and start time. */
+  async activeJobs(): Promise<
+    { transcodeId: string; progress: number; startedAt: string; status: string }[]
+  > {
+    const jobs = await this.queue.getActive()
+    return jobs.map((job) => ({
+      transcodeId: String(job.id),
+      progress: typeof job.progress === 'number' ? job.progress : 0,
+      startedAt: new Date(job.processedOn ?? job.timestamp).toISOString(),
+      status: 'PROCESSING',
+    }))
+  }
+
+  /** The most recent failed jobs, newest first, for the ops failure feed. */
+  async recentFailures(
+    limit = 10
+  ): Promise<{ transcodeId: string; error: string | null; at: string }[]> {
+    const jobs = await this.queue.getFailed(0, limit - 1)
+    return jobs.map((job) => ({
+      transcodeId: String(job.id),
+      error: job.failedReason ?? null,
+      at: new Date(job.finishedOn ?? job.timestamp).toISOString(),
+    }))
+  }
+
   async close(): Promise<void> {
     await this.queue.close()
   }

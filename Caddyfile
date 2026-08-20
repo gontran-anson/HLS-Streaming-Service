@@ -22,6 +22,14 @@
 	# HLS playlists + segments — served from RustFS, never from the app.
 	# `handle` keeps the full path; we prepend the bucket for S3 path-style.
 	handle /hls/* {
+		header {
+			Access-Control-Allow-Origin *
+			Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+			Access-Control-Allow-Headers "Range, Content-Type"
+			Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges, ETag"
+		}
+		@preflight method OPTIONS
+		respond @preflight 204
 		rewrite * /{$RUSTFS_BUCKET:streaming-service}{uri}
 		reverse_proxy {$RUSTFS_ENDPOINT:http://rustfs:9000}
 	}
@@ -30,6 +38,14 @@
 	# the HLS. reverse_proxy is transparent to Range/ETag; do NOT add `encode`
 	# here: compressing these bytes would break byte-range resume (spike #184).
 	handle /dl/* {
+		header {
+			Access-Control-Allow-Origin *
+			Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+			Access-Control-Allow-Headers "Range, Content-Type"
+			Access-Control-Expose-Headers "Content-Length, Content-Range, Accept-Ranges, ETag"
+		}
+		@preflight method OPTIONS
+		respond @preflight 204
 		rewrite * /{$RUSTFS_BUCKET:streaming-service}{uri}
 		reverse_proxy {$RUSTFS_ENDPOINT:http://rustfs:9000}
 	}
