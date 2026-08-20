@@ -25,6 +25,16 @@ const callbackSecretColumn = {
   decorators: [{ name: '@column', args: { serializeAs: null } }],
 }
 
+// The download renditions blob (ADR-0009). A bare jsonb would be typed `any`;
+// close it onto the shared `DownloadRenditionInfo[]` shape so the compiler
+// checks every read and write. `prepare`/`consume` are applied in the model
+// (they cannot be expressed here), keeping the pg round-trip explicit.
+const downloadsColumn = {
+  tsType: 'DownloadRenditionInfo[]',
+  imports: [{ source: '#transcodes/support/hls', typeImports: ['DownloadRenditionInfo'] }],
+  decorators: [{ name: '@column' }],
+}
+
 export default {
   tables: {
     transcodes: {
@@ -32,6 +42,7 @@ export default {
         status: statusColumn,
         source_kind: sourceKindColumn,
         callback_secret: callbackSecretColumn,
+        downloads: downloadsColumn,
       },
     },
   },

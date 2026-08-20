@@ -26,6 +26,14 @@
 		reverse_proxy {$RUSTFS_ENDPOINT:http://rustfs:9000}
 	}
 
+	# Progressive .aac download renditions (ADR-0009) — served from RustFS like
+	# the HLS. reverse_proxy is transparent to Range/ETag; do NOT add `encode`
+	# here: compressing these bytes would break byte-range resume (spike #184).
+	handle /dl/* {
+		rewrite * /{$RUSTFS_BUCKET:streaming-service}{uri}
+		reverse_proxy {$RUSTFS_ENDPOINT:http://rustfs:9000}
+	}
+
 	# Real-time SSE — disable response buffering so events flush immediately.
 	handle /__transmit/* {
 		reverse_proxy {$APP_UPSTREAM:server:3333} {

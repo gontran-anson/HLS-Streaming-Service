@@ -9,6 +9,23 @@ export interface Rendition {
 }
 
 /**
+ * One progressive download rendition as it is **persisted** on the Transcode row
+ * and **published** in the completion webhook (ADR-0009): the ladder rung name,
+ * its absolute unsigned public URL, and the byte size measured locally at encode
+ * time. The single shape the model column, the webhook payload and the
+ * `ProcessTranscode` result all speak, so there is one contract to keep in sync.
+ * No bitrate field — the ladder stays implicit (ADR-0001).
+ */
+export interface DownloadRenditionInfo {
+  /** `low` | `mid` | `high` — the ladder rung (ADR-0001). */
+  name: string
+  /** The absolute, unsigned, versioned URL on the public origin (ADR-0006/0009). */
+  url: string
+  /** The `.aac` file size in bytes (measured locally, no `HEAD`). */
+  bytes: number
+}
+
+/**
  * The fixed 3-rung ladder. 64 kbps is the floor — below it worship music
  * degrades audibly (see the design, Q7).
  */
@@ -20,6 +37,26 @@ export const RENDITIONS: readonly Rendition[] = [
 
 /** Target segment length in seconds. */
 export const HLS_SEGMENT_SECONDS = 6
+
+/**
+ * The container/codec of the progressive **download** renditions (ADR-0009).
+ *
+ * Isolated in one place so the spike #183 fallback — a move from AAC/ADTS to
+ * MP3 should a device test ever fail — stays a local edit here and never leaks
+ * into `buildArgs`, the upload content-type or the key layout. ADTS is chosen
+ * because any prefix of the file is valid audio (no central index), so the
+ * client can play a half-downloaded file.
+ */
+export const DOWNLOAD_FORMAT = {
+  /** ffmpeg muxer (`-f`). ADTS = raw AAC frames, so any byte prefix decodes. */
+  container: 'adts',
+  /** ffmpeg audio codec (`-c:a`). */
+  codec: 'aac',
+  /** Extension the renditions carry on disk and in their public key. */
+  extension: 'aac',
+  /** Content-type set on upload and served by the origin. */
+  contentType: 'audio/aac',
+} as const
 
 /** Local staging root for a Transcode's HLS output and FLAC archive. */
 export function hlsOutputDir(id: string): string {
@@ -67,4 +104,66 @@ export function archiveKey(id: string): string {
 export function outputPlaylistUrl(id: string): string {
   const base = env.get('HLS_PUBLIC_BASE_URL').replace(/\/+$/, '')
   return `${base}/hls/${id}/master.m3u8`
+}
+
+/**
+ * Local staging dir for the progressive download renditions (ADR-0009). Kept
+ * **outside** the HLS output dir — like the FLAC archive — so the HLS upload
+ * (`uploadDirectory`) never sweeps the `.aac` in with the wrong content-type or
+ * key. They ride their own `dl/<id>/` prefix instead.
+ */
+export function downloadOutputDir(id: string): string {
+  return app.makePath('storage/dl', id)
+}
+
+/** The local path of one download rendition, e.g. `.../<id>/low.aac`. */
+export function downloadRenditionPath(id: string, name: string): string {
+  return join(downloadOutputDir(id), `${name}.${DOWNLOAD_FORMAT.extension}`)
+}
+
+/**
+ * The RustFS key prefix the download renditions are pushed to and served from:
+ * `dl/<id>`. Upload and delete both derive their keys from here (same discipline
+ * as `hlsKeyPrefix`), and the `<id>` makes every re-transcode a **new URL**, so
+ * a download resumed days later with `Range` can never splice a different
+ * version's bytes (ADR-0009).
+ */
+export function downloadKeyPrefix(id: string): string {
+  return `dl/${id}`
+}
+
+/** The RustFS key of one download rendition: `dl/<id>/<name>.aac`. */
+export function downloadRenditionKey(id: string, name: string): string {
+  return `${downloadKeyPrefix(id)}/${name}.${DOWNLOAD_FORMAT.extension}`
+}
+
+/**
+ * The absolute public URL of one download rendition (ADR-0006/0009), on the same
+ * public origin as the HLS: `<HLS_PUBLIC_BASE_URL>/dl/<id>/<name>.aac`.
+ * **Unsigned** — a signed URL would expire mid-pause and break "resume days
+ * later" with a 403.
+ */
+export function downloadRenditionUrl(id: string, name: string): string {
+  const base = env.get('HLS_PUBLIC_BASE_URL').replace(/\/+$/, '')
+  return `${base}/${downloadRenditionKey(id, name)}`
+}
+
+/**
+ * The ffmpeg output arguments for the three progressive download renditions
+ * (ADR-0009): one mapped output per rung of the ladder, decoded from the **same**
+ * source read as the HLS and FLAC (no second pass). Each is
+ * `-map 0:a:0 -c:a aac -b:a <bitrate> -f adts <id>/<name>.aac`.
+ */
+export function downloadOutputArgs(id: string): string[] {
+  return RENDITIONS.flatMap((rendition) => [
+    '-map',
+    '0:a:0',
+    '-c:a',
+    DOWNLOAD_FORMAT.codec,
+    '-b:a',
+    rendition.bitrate,
+    '-f',
+    DOWNLOAD_FORMAT.container,
+    downloadRenditionPath(id, rendition.name),
+  ])
 }
