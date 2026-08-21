@@ -1,0 +1,59 @@
+name: release
+
+# Build + push de l'image sur GHCR, puis déploiement blue/green sur le VPS.
+# Déclenché UNIQUEMENT par un tag semver : `git tag v1.0.1 && git push origin v1.0.1`.
+# (Le `ci.yml` existant reste le garde-fou lint/typecheck/test sur main + PR.)
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-stream
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Métadonnées (tags = le tag git tel quel + latest)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # GHCR force les minuscules : hls-streaming-service
+          images: ghcr.io/gontran-anson/hls-streaming-service
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy (SSH)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: /opt/newlife/flip-stream.sh ${{ github.ref_name }}
